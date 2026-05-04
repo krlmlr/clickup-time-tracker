@@ -37,16 +37,16 @@ nvm --version
 
 ### Install Node.js
 
-Once nvm is installed, install Node.js (the project uses Node 16 LTS):
+Once nvm is installed, install Node.js using the version specified in `.nvmrc`:
 
 ```bash
-nvm install 16
-nvm use 16
+nvm install
+nvm use
 ```
 
-Verify you have the correct version:
+Verify installation:
 ```bash
-node --version  # Should be v16.x.x
+node --version
 npm --version
 ```
 
