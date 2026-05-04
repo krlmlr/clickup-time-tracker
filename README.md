@@ -41,52 +41,7 @@ In the next screen you'll see a button to generate a API token. Do that and past
 You can find your team's ID in the url after you log in to your ClickUp dashboard. It's the first part after the domain. For example if you see `app.clickup.com/1234567`, then your team ID is `1234567`
 
 ## Building from Source
-
-### Prerequisites
-- **Node.js** 16.20.2 or compatible version (check `.nvmrc`)
-- **npm** (comes with Node.js)
-
-You can use [nvm](https://github.com/nvm-sh/nvm) to manage Node.js versions:
-```bash
-nvm install
-```
-
-### Installation
-Install project dependencies:
-```bash
-npm install
-```
-
-### Development
-To run the app in development mode with hot-reload:
-```bash
-npm run electron:serve
-```
-
-### Building for Production
-Build for your current platform:
-```bash
-# macOS
-PYTHON=python3 npm run build:osx
-
-# Windows
-npm run build:win
-
-# Linux
-npm run build:linux
-
-# All platforms
-npm run build:all
-```
-
-Built applications will be available in the `dist_electron` directory.
-
-### Other Commands
-- **Lint**: `npm run lint`
-- **Test**: `npm run test`
-- **Watch tests**: `npm run test:watch`
-
-For more development information, see the [development guide](./docs/development.md).
+See [BUILD.md](./BUILD.md) for detailed instructions on building the app.
 
 ## Contributions
 If you'd like to contribute please check out the getting started doc [over here](./docs/development.md)
