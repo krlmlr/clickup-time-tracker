@@ -1,3 +1,55 @@
+## Prerequisites
+
+### Install nvm (Node Version Manager)
+
+nvm allows you to easily manage multiple Node.js versions. Follow the instructions for your platform:
+
+#### macOS/Linux
+
+1. Download and install nvm:
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+```
+
+2. Close and reopen your terminal, or run:
+```bash
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+```
+
+3. Verify installation:
+```bash
+nvm --version
+```
+
+#### Windows
+
+1. Download and run the nvm-windows installer from: https://github.com/coreybutler/nvm-windows/releases
+   - Download `nvm-setup.exe` and run it
+   - Follow the installation wizard
+
+2. Open a new PowerShell or Command Prompt window
+
+3. Verify installation:
+```bash
+nvm --version
+```
+
+### Install Node.js
+
+Once nvm is installed, install Node.js (the project uses Node 16 LTS):
+
+```bash
+nvm install 16
+nvm use 16
+```
+
+Verify you have the correct version:
+```bash
+node --version  # Should be v16.x.x
+npm --version
+```
+
 ### Project setup
 ``` bash
 npm install
