@@ -40,6 +40,9 @@ In the next screen you'll see a button to generate a API token. Do that and past
 #### ClickUp Team ID
 You can find your team's ID in the url after you log in to your ClickUp dashboard. It's the first part after the domain. For example if you see `app.clickup.com/1234567`, then your team ID is `1234567`
 
+## Building from Source
+See [BUILD.md](./BUILD.md) for detailed instructions on building the app.
+
 ## Contributions
 If you'd like to contribute please check out the getting started doc [over here](./docs/development.md)
 
