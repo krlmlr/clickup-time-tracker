@@ -6,7 +6,8 @@ export default {
         if(!entry.task) return false
         if(entry.task === '0') return this.entryWithoutTask(entry);
 
-        const editable = ['Closed', 'archived'].indexOf(entry.task.status.status) === -1
+        const isClosed = ['Closed', 'archived'].indexOf(entry.task.status.status) !== -1
+        const deletable = !isClosed
 
         return {
             entryId: entry.id,
@@ -20,11 +21,11 @@ export default {
             start: new Date(Number(entry.start)),
             end: new Date(Number(entry.start) + Number(entry.duration)),
 
-            // Only make draggable/resizable/editable if task is not closed or archived
-            draggable: editable,
-            resizable: editable,
-            deletable: editable,
-            class: !editable ? 'not-editable' : null + ' ' + entry.task_location.space_id ? 'space-' + entry.task_location.space_id : null
+            // Allow time changes (dragging/resizing) even on closed or archived items
+            draggable: true,
+            resizable: true,
+            deletable: deletable,
+            class: isClosed ? 'not-editable' : null + ' ' + entry.task_location.space_id ? 'space-' + entry.task_location.space_id : null
         }
     },
 
