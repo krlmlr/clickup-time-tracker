@@ -31,8 +31,13 @@ naming:
 ### A. Static web app / PWA (recommended if AI ownership is the priority)
 
 Drop Electron. The Vue UI moves nearly unchanged into a Vite + Vue 3 app
-served as static files (Cloudflare Pages, GitHub Pages, Vercel). The ClickUp
-API is plain HTTPS REST — no OS APIs are actually required.
+served as static files. The ClickUp API is plain HTTPS REST — no OS APIs
+are actually required. **However**, the rewrite is the right time to move
+authentication from "paste a personal access token" to OAuth2, and ClickUp's
+OAuth requires a confidential client — meaning a small backend has to exist.
+The "static-only" framing in earlier drafts was wrong-by-omission; once
+OAuth is in scope the architecture is **static frontend + tiny backend
+worker**.
 
 What disappears:
 `electron`, `electron-builder`, `electron-store`, `electron-updater`,
@@ -45,13 +50,13 @@ upload, `request`. Roughly half the dependency tree and all of the
 chase-day cost.
 
 What changes shape:
-* `electron-store` → `localStorage` for settings, IndexedDB for hierarchy
-  cache. Token storage moves from a file with OS-level protection to
-  browser storage; if that's unacceptable, a thin Cloudflare Worker proxy
-  holds the token server-side and the browser only ever sees a session
-  cookie. Either is sandbox-runnable.
-* IPC `ipcRenderer.send / on` → direct function calls (everything that was
-  in main process becomes a renderer module). ~17 IPC sites collapse.
+* **Authentication**: PAT paste box → OAuth2. See
+  [Hosting and authentication](#hosting-and-authentication-for-the-pwa) below.
+* `electron-store` → IndexedDB for hierarchy cache; user-scoped server-side
+  storage (Workers KV) for settings if you want them to follow the user
+  across devices, otherwise localStorage.
+* IPC `ipcRenderer.send / on` → direct function calls or HTTP calls to the
+  BFF. ~17 IPC sites collapse or move.
 * `electron-updater` → a stale-tab banner driven by a hash check.
 * Sentry-electron → `@sentry/browser`. Symbol upload becomes irrelevant.
 * `app-menu.js` → keyboard-shortcut handlers in the renderer
@@ -64,15 +69,61 @@ What's lost:
   in Safari (PWA support on macOS is solid).
 
 CI / sandbox fit:
-* `npm ci && npm run build && npx playwright test` — that's the whole
-  pipeline. No `xvfb`, no `_electron`, no signing, no platform matrix.
-* Preview deploys per PR are free on Cloudflare/Vercel.
-* AI agent loop: branch → tests pass → preview URL → merge → live. The
-  human is on the merge button, nothing else.
+* Frontend: `npm ci && npm run build && npx playwright test` — no `xvfb`,
+  no `_electron`, no signing, no platform matrix.
+* Backend: `wrangler deploy` from CI; `wrangler dev` for local sandbox loop.
+* Preview deploys per PR are free on Cloudflare Pages (frontend) and
+  cheap-to-free on Workers (backend, with route-aliased preview env).
+* AI agent loop: branch → tests pass → preview URL (frontend + worker
+  preview) → merge → live. The human is on the merge button, plus
+  occasional secret-rotation oversight.
 
-**Effort estimate**: 3-5 weeks for one engineer + assistant, vs. the
-upgrade plan's 6 milestones / 8-12 weeks of calendar time gated by chase
-days. E2E coverage starts higher because there's only one process.
+**Effort estimate**: **4–6 weeks** for one engineer + assistant (was 3–5
+without OAuth), vs. the upgrade plan's 6 milestones / 8–12 weeks of
+calendar time gated by chase days. E2E coverage starts higher because
+there's only one process plus a stateless worker.
+
+#### Hosting and authentication for the PWA
+
+OAuth2 with ClickUp is a confidential-client authorization-code grant. The
+`client_secret` cannot live in the browser. That forces one of two patterns:
+
+**Pattern 1 — Backend-for-Frontend (BFF), recommended.**
+```
+Browser ── HttpOnly Secure SameSite cookie ── BFF ── access_token ── ClickUp API
+```
+The browser holds only an opaque session cookie. The BFF holds the token,
+encrypted, in Workers KV (or equivalent). All ClickUp calls go through the
+BFF. XSS can't steal the token. Server-side caching, audit logs, and
+rate-limit smoothing fall out for free. Costs an extra hop per request
+(usually <50 ms on a Worker; ClickUp's own latency dominates).
+
+**Pattern 2 — Auth-only backend, token in browser.**
+Backend exists only to perform the one-shot OAuth code-exchange (the only
+step that needs the secret). Returns the token to the browser; browser
+stores it in localStorage / IndexedDB and calls ClickUp directly. Cheaper
+to run, but the token is XSS-stealable. Recommended only if cost or
+latency rules out Pattern 1.
+
+**Recommended hosting**: Cloudflare Pages (frontend) + Cloudflare Workers
++ Workers KV (BFF). Free hobby tier; ~$5/mo at small commercial scale;
+~200 lines of TypeScript for the Worker; `wrangler deploy` from GitHub
+Actions. Same Worker can serve the Tauri rewrite if both forks proceed —
+one OAuth app registered with ClickUp, two clients, one Worker. Workers'
+sandbox-friendliness (`wrangler dev` works in a Linux container) keeps the
+AI loop tight.
+
+Required ceremony (one-time, manual):
+* Register an OAuth app at https://app.clickup.com/settings/team/<id>/apps —
+  needs publisher name, logo, public privacy policy URL.
+* Provision a Cloudflare account, set `CLICKUP_CLIENT_ID` and
+  `CLICKUP_CLIENT_SECRET` as Worker secrets.
+* Host `PRIVACY.md` (already in the repo) at a stable URL — the same
+  Cloudflare Pages project covers this.
+
+What this trades against the upgrade-in-place plan: instead of running
+sign-and-notarize ceremonies on every release, you run a `wrangler deploy`
+from CI on every merge. Net ops burden is lower.
 
 ### B. Tauri (Rust + system webview)
 
