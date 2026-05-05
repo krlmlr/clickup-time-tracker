@@ -478,6 +478,9 @@ export default {
   },
 
   methods: {
+    /*
+      This seens like the least-worst alternative to keep Cmd on macOS and Ctrl on Windows/Linux as the modifier for keyboard shortcuts.
+    */
     handleCalendarKeydown(event) {
       const isMac = process.platform === 'darwin'
       const isCmd = event.metaKey
