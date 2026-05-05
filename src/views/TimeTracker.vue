@@ -42,14 +42,7 @@
         @view-change="handleDateChange"
         @event-drop="updateTimeTrackingEntry"
         @event-duration-change="updateTimeTrackingEntry"
-        @keydown.ctrl.delete.exact="deleteSelectedTask()"
-        @keydown.meta.delete.exact="deleteSelectedTask()"
-        @keydown.ctrl.v.exact="duplicateSelectedTask()"
-        @keydown.meta.v.exact="duplicateSelectedTask()"
-        @keydown.ctrl.d.exact="duplicateSelectedTask()"
-        @keydown.meta.d.exact="duplicateSelectedTask()"
-        @keydown.ctrl.x.exact="refreshBackgroundImage()"
-        @keydown.meta.x.exact="refreshBackgroundImage()"
+        @keydown="handleCalendarKeydown"
     >
       <template v-slot:title="{ title }">
         <div class="flex items-center space-x-4">
@@ -485,6 +478,29 @@ export default {
   },
 
   methods: {
+    handleCalendarKeydown(event) {
+      const isMac = process.platform === 'darwin'
+      const isCmd = event.metaKey
+      const isCtrl = event.ctrlKey
+      const shouldTrigger = isMac ? isCmd : isCtrl
+
+      if (!shouldTrigger) return
+
+      if (event.key === 'Delete' && !event.shiftKey && !event.altKey) {
+        event.preventDefault()
+        this.deleteSelectedTask()
+      } else if (event.key === 'd' && !event.shiftKey && !event.altKey) {
+        event.preventDefault()
+        this.duplicateSelectedTask()
+      } else if (event.key === 'v' && !event.shiftKey && !event.altKey) {
+        event.preventDefault()
+        this.duplicateSelectedTask()
+      } else if (event.key === 'x' && !event.shiftKey && !event.altKey) {
+        event.preventDefault()
+        this.refreshBackgroundImage()
+      }
+    },
+
     /*
     |--------------------------------------------------------------------------
     | FETCH TIME TRACKING ENTRIES
