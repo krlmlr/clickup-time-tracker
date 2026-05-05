@@ -1,4 +1,5 @@
 import clickupService from "@/clickup-service";
+import store from "@/store";
 
 export default {
     fromClickup: function(entry) {
@@ -7,6 +8,10 @@ export default {
         if(entry.task === '0') return this.entryWithoutTask(entry);
 
         const isClosed = ['Closed', 'archived'].indexOf(entry.task.status.status) !== -1
+        // Compatibility setting: when enabled, restore the original behavior of
+        // locking all mutations on closed/archived items.
+        const lockClosedItems = store.get('settings.lock_closed_items') === true
+        const editable = !(isClosed && lockClosedItems)
         const deletable = !isClosed
 
         return {
@@ -21,11 +26,12 @@ export default {
             start: new Date(Number(entry.start)),
             end: new Date(Number(entry.start) + Number(entry.duration)),
 
-            // Allow time changes (dragging/resizing) even on closed or archived items
-            draggable: true,
-            resizable: true,
-            deletable: deletable,
-            class: isClosed ? 'not-editable' : null + ' ' + entry.task_location.space_id ? 'space-' + entry.task_location.space_id : null
+            // Allow time changes (dragging/resizing) even on closed or archived items,
+            // unless the lock_closed_items compatibility setting is enabled.
+            draggable: editable,
+            resizable: editable,
+            deletable: editable && deletable,
+            class: !editable ? 'not-editable' : null + ' ' + entry.task_location.space_id ? 'space-' + entry.task_location.space_id : null
         }
     },
 
