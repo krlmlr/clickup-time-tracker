@@ -42,10 +42,7 @@
         @view-change="handleDateChange"
         @event-drop="updateTimeTrackingEntry"
         @event-duration-change="updateTimeTrackingEntry"
-        v-shortcut:delete="deleteSelectedTask"
-        v-shortcut:d="duplicateSelectedTask"
-        v-shortcut:v="duplicateSelectedTask"
-        v-shortcut:x="refreshBackgroundImage"
+        @keydown="handleCalendarKeydown"
     >
       <template v-slot:title="{ title }">
         <div class="flex items-center space-x-4">
@@ -338,7 +335,6 @@ import { totalHoursOnDate as totalHoursOnDateUtil, hasTimeTrackedOn as hasTimeTr
 import MemberSelector from '@/components/MemberSelector'
 import TimeTrackingStatistics from '@/components/TimeTrackingStatistics'
 import TimeEntryCreatorForm from '@/components/TimeEntryCreatorForm.vue'
-import vShortcut from '@/directives/shortcut'
 
 import {ChartPieIcon, CogIcon, InformationCircleIcon, UsersIcon} from "@heroicons/vue/20/solid";
 import {ClockIcon, PencilIcon, TrashIcon, StarIcon as StarIconOutline} from "@heroicons/vue/24/outline";
@@ -386,10 +382,6 @@ export default {
     InformationCircleIcon,
     StarIconOutline,
     StarIconSolid,
-  },
-
-  directives: {
-    shortcut: vShortcut,
   },
 
   setup() {
@@ -486,6 +478,29 @@ export default {
   },
 
   methods: {
+    handleCalendarKeydown(event) {
+      const isMac = process.platform === 'darwin'
+      const isCmd = event.metaKey
+      const isCtrl = event.ctrlKey
+      const shouldTrigger = isMac ? isCmd : isCtrl
+
+      if (!shouldTrigger) return
+
+      if (event.key === 'Delete' && !event.shiftKey && !event.altKey) {
+        event.preventDefault()
+        this.deleteSelectedTask()
+      } else if (event.key === 'd' && !event.shiftKey && !event.altKey) {
+        event.preventDefault()
+        this.duplicateSelectedTask()
+      } else if (event.key === 'v' && !event.shiftKey && !event.altKey) {
+        event.preventDefault()
+        this.duplicateSelectedTask()
+      } else if (event.key === 'x' && !event.shiftKey && !event.altKey) {
+        event.preventDefault()
+        this.refreshBackgroundImage()
+      }
+    },
+
     /*
     |--------------------------------------------------------------------------
     | FETCH TIME TRACKING ENTRIES
