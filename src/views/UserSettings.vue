@@ -65,6 +65,16 @@
           <label class="ml-3 text-gray-800 dark:text-gray-200">Enable statistics</label>
         </n-form-item>
 
+        <n-form-item :show-feedback="false" :show-label="false" path="lock_closed_items">
+          <n-switch v-model:value="model.lock_closed_items" :default-value="false" />
+          <label class="ml-3 text-gray-800 dark:text-gray-200">
+            Lock time entries on closed items
+            <div class="text-sm text-gray-500 dark:text-gray-400">
+              Restore the original behavior: prevent dragging or resizing entries on closed/archived tasks
+            </div>
+          </label>
+        </n-form-item>
+
         <hr class="my-6 dark:border-gray-700" />
         <!-- START | Hierarchy Selection -->
         <label class="absolute px-1.5 bg-white dark:bg-gray-800 -ml-4 -mt-9">Hierarchy Selection</label>
