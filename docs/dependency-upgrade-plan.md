@@ -21,6 +21,127 @@ These were chosen up front. They drive the structure below.
 | 6 | Sentry | **Keep** and migrate `@sentry/electron` 4 → 7 (drop branch noted in M3) |
 | 7 | What "done" means per milestone | **Cut a release** (signed/notarized macOS, signed Windows, Linux AppImage) before opening the next milestone |
 
+## Alternative considered: clean rewrite
+
+The plan below assumes the goal is **upgrade in place**. If the actual goal is
+"an e2e-tested app that an AI agent can own end-to-end on a Linux sandbox",
+the upgrade is *not* the cheapest route. Three rewrite shapes are worth
+naming:
+
+### A. Static web app / PWA (recommended if AI ownership is the priority)
+
+Drop Electron. The Vue UI moves nearly unchanged into a Vite + Vue 3 app
+served as static files (Cloudflare Pages, GitHub Pages, Vercel). The ClickUp
+API is plain HTTPS REST — no OS APIs are actually required.
+
+What disappears:
+`electron`, `electron-builder`, `electron-store`, `electron-updater`,
+`electron-notarize` / `@electron/notarize`, `electron-devtools-installer`,
+`vue-cli-plugin-electron-builder`, `@sentry/electron`, `preload.js`,
+`background.js`, `app-menu.js`, `app-updater.js`, `notarize.js`,
+`sentry-symbols.js`, `build/` (entitlements, icon variants), the entire
+release matrix, code-signing certs, Apple Developer account, Sentry symbol
+upload, `request`. Roughly half the dependency tree and all of the
+chase-day cost.
+
+What changes shape:
+* `electron-store` → `localStorage` for settings, IndexedDB for hierarchy
+  cache. Token storage moves from a file with OS-level protection to
+  browser storage; if that's unacceptable, a thin Cloudflare Worker proxy
+  holds the token server-side and the browser only ever sees a session
+  cookie. Either is sandbox-runnable.
+* IPC `ipcRenderer.send / on` → direct function calls (everything that was
+  in main process becomes a renderer module). ~17 IPC sites collapse.
+* `electron-updater` → a stale-tab banner driven by a hash check.
+* Sentry-electron → `@sentry/browser`. Symbol upload becomes irrelevant.
+* `app-menu.js` → keyboard-shortcut handlers in the renderer
+  (`useEventListener('keydown')`).
+
+What's lost:
+* OS tray icon, system menu bar entries, global shortcuts when the window
+  is unfocused.
+* The user installs nothing — just bookmarks a URL or "Add to Dock"
+  in Safari (PWA support on macOS is solid).
+
+CI / sandbox fit:
+* `npm ci && npm run build && npx playwright test` — that's the whole
+  pipeline. No `xvfb`, no `_electron`, no signing, no platform matrix.
+* Preview deploys per PR are free on Cloudflare/Vercel.
+* AI agent loop: branch → tests pass → preview URL → merge → live. The
+  human is on the merge button, nothing else.
+
+**Effort estimate**: 3-5 weeks for one engineer + assistant, vs. the
+upgrade plan's 6 milestones / 8-12 weeks of calendar time gated by chase
+days. E2E coverage starts higher because there's only one process.
+
+### B. Tauri (Rust + system webview)
+
+Keep native packaging, drop Electron. Vue UI ports as-is; main-process work
+moves to Rust commands. Bundle is ~2-10 MB instead of ~120 MB; idle memory
+~30 MB instead of ~300 MB.
+
+What changes:
+* `clickup-service.js` either stays in JS (Tauri's renderer is a normal
+  webview) or moves to Rust + `reqwest` (better resource profile, more
+  rewriting).
+* `electron-store` → Tauri's `tauri-plugin-store` (similar API, ESM-clean)
+  or `tauri-plugin-stronghold` (encrypted, OS-keyring-backed).
+* `electron-updater` → Tauri's built-in updater.
+* `@sentry/electron` → `@sentry/browser` + a small Rust panic hook reporting
+  to Sentry's native SDK. Or skip the Rust side and only instrument the
+  webview.
+
+CI / sandbox fit:
+* `cargo tauri dev` runs under `xvfb-run` cleanly; e2e via
+  `tauri-driver` + WebDriver.
+* macOS signing/notarization still required but Tauri's tooling handles it
+  with one config block (no `notarize.js`, no afterSign hook).
+* Linux AppImage / deb / rpm produced on `ubuntu-latest`, no FUSE quirks.
+
+**Effort estimate**: 4-7 weeks. Higher than option A because of the Rust
+shell, lower than the upgrade because no Tailwind 4 / electron-store ESM /
+webpack→Vite ceremony — Tauri starts on Vite.
+
+### C. Native macOS (SwiftUI) — rejected for this constraint
+
+Smallest runtime, best macOS integration, but: SwiftUI doesn't compile in a
+Linux sandbox, `xcodebuild` is macOS-only, the AI loop becomes
+"prepare PR, hand to a Mac for build verification, maybe come back". The
+"AI as code owner" goal collapses on a Linux sandbox. Also drops Linux +
+Windows users entirely.
+
+### Side-by-side
+
+| Dimension | Upgrade in place | A. PWA | B. Tauri | C. SwiftUI |
+|---|---|---|---|---|
+| Calendar time | 8–12 wk | 3–5 wk | 4–7 wk | 6–10 wk |
+| Chase days needed | 6+ | 0 | 2–3 | every release |
+| Sandbox-only loop | Linux yes, mac/win no | **full** | Linux yes, mac no | **no** |
+| AI ownership of merges | partial | **full** | high | low |
+| Idle memory | ~300 MB | ~50 MB (browser tab) | ~30 MB | ~20 MB |
+| Bundle size | ~120 MB | n/a | ~5–10 MB | ~5 MB |
+| Code-signing burden | macOS + Windows | none | macOS only | macOS only |
+| Existing Vue code reused | 100% | ~95% | ~95% | 0% |
+| Token-at-rest security | OS file (best) | localStorage / proxy | OS keyring (best) | OS keychain |
+| Lost features vs. today | none | tray, global shortcuts | minor menu polish | Linux/Win users |
+
+### Recommendation
+
+If "AI as code owner" is the *primary* goal and macOS-only is acceptable as
+a release target:
+
+1. **Default**: option A. PWA. Cheapest, cleanest CI, fastest agent loop.
+   Token-storage tradeoff is the only thing to think hard about.
+2. **If a native window is genuinely required** (system tray, offline-first
+   on a flaky connection, drag-and-drop with native OS behavior): option B.
+   Tauri. Slightly more effort than A, retains native packaging.
+3. The upgrade plan below is the right answer only if you must keep the
+   exact current product surface (3-OS native installs, system tray,
+   Sentry-electron) and the cost is acceptable.
+
+The rest of this document covers option D — the in-place upgrade — in case
+that's the chosen path.
+
 ## Scope and constraints
 
 * All non-release work runs in a sandbox: `npm ci`, lint, vitest, Playwright
@@ -130,6 +251,9 @@ and lint. Production behavior unchanged.
    `clickup-service.js` paths: `tokenValid`, `getCurrentUserId`,
    `getHierarchy` (cached + filtered), `_getFullHierarchy` (pagination), and
    error/retry handling.
+   * Mock fixtures live in `tests/fixtures/clickup/` — see
+     [Mock data collection](#mock-data-collection-m0) for how they get there
+     and stay fresh.
 4. Add unit tests for `events-factory.js` (closed/archived rules,
    `lock_closed_items`, `updateFromRemote`), `cache.js` (TTL, `clear`,
    `flush`), `time-utils.js`, and any pure helpers in `helpers.js`.
@@ -178,6 +302,55 @@ and lint. Production behavior unchanged.
    `electron-*`, `vue-*`, `eslint-*`, `babel-*`, `vite-*` (placeholder),
    `sentry-*`, `tailwind-*`. Weekly schedule.
 9. Add `npm audit --omit=dev --audit-level=high` as a non-blocking job.
+
+### Mock data collection (M0)
+
+The unit tests under MSW and the e2e IPC tests both need realistic ClickUp API
+responses. Hand-writing them is fragile and goes stale; recording them is the
+better trade.
+
+**One-time bootstrap (manual)** — happens once, by a person with a real
+ClickUp token. Roughly 30 minutes:
+
+1. Run `tools/record-clickup-fixtures.js --token $CU_TOKEN --team $CU_TEAM`.
+   The script walks every endpoint `clickup-service.js` actually calls
+   (`/user`, `/team/{id}`, `/team/{id}/space`, `/space/{id}/folder`,
+   `/folder/{id}/list`, `/list/{id}/task`, `/task/{id}`,
+   `/team/{id}/time_entries`, plus pagination edges) and writes raw responses
+   to `tests/fixtures/clickup/raw/`.
+2. Run `tools/sanitize-fixtures.js`. Walks every JSON file and replaces:
+   * user names → `Faker.person.fullName` with a stable seed
+   * emails → `user-${id}@example.test`
+   * task names + descriptions → length-preserving placeholders, with a
+     small curated set of accent-bearing names kept (the search tests need
+     accent coverage)
+   * team / space / folder / list / task IDs → deterministic short IDs
+     mapped via a single `tests/fixtures/clickup/id-map.json`
+   * timestamps → frozen at a fixed epoch + offset
+3. Eyeball the diff in `tests/fixtures/clickup/sanitized/` and commit the
+   sanitized output. The `raw/` subdirectory is gitignored.
+
+**Ongoing (fully automated, sandbox-runnable)** — no token, no human:
+
+4. The recorder + sanitizer are *idempotent*. To refresh fixtures (e.g. after
+   ClickUp changes a response shape), one person re-runs the bootstrap;
+   everything else is deterministic.
+5. **Schema drift detector** runs in CI without a token: a tiny
+   `tools/check-fixture-shape.js` that compares the sanitized JSON against a
+   committed JSON-schema snapshot (generated from the same fixtures). Fails
+   the build if `clickup-service.js` references a field absent from the
+   fixtures, or if a fixture has a field the code never uses (dead-fixture
+   detection).
+6. **Synthetic fan-out**: for cases where the recorded set is too small
+   (pagination boundaries, empty folders, archived tasks, deleted users), a
+   `tools/synthesize-edge-fixtures.js` script generates extra fixtures
+   programmatically *from* the recorded shapes. Pure code, runs in the
+   sandbox.
+
+**What stays manual**: only the initial token-handling step and the
+sanitization-diff review. All test execution, schema drift detection, and
+edge-case generation are CI-runnable without secrets. The assistant can do
+everything in this section *except* the token step.
 
 ### Chase day (M0 close)
 
