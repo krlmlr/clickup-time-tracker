@@ -4,10 +4,9 @@ on:
   push:
     tags:
       - 'v*'
-env:
-  APPLE_ID: ${{ secrets.apple_id }}
-  APPLE_ID_PASSWORD: ${{ secrets.apple_id_password }}
-  VUE_APP_SENTRY_DSN: ${{ secrets.sentry_dsn }}
+
+permissions:
+  contents: write
 
 jobs:
   release:
@@ -19,15 +18,15 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 14
+          node-version: 16
 
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.npm
           key: npm-${{ hashFiles('package-lock.json') }}
@@ -37,7 +36,11 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Build/release Electron app
-        uses: samuelmeuli/action-electron-builder@v1
+        uses: samuelmeuli/action-electron-builder@92327c67bc45ff7c38bf55d8aa8c4d75b7ea38e7 # v1.6.0
+        env:
+          APPLE_ID: ${{ secrets.apple_id }}
+          APPLE_ID_PASSWORD: ${{ secrets.apple_id_password }}
+          VUE_APP_SENTRY_DSN: ${{ secrets.sentry_dsn }}
         with:
           skip_build: true
 
