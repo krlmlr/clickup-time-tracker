@@ -43,9 +43,13 @@
         @event-drop="updateTimeTrackingEntry"
         @event-duration-change="updateTimeTrackingEntry"
         @keydown.ctrl.delete.exact="deleteSelectedTask()"
+        @keydown.meta.delete.exact="deleteSelectedTask()"
         @keydown.ctrl.v.exact="duplicateSelectedTask()"
+        @keydown.meta.v.exact="duplicateSelectedTask()"
         @keydown.ctrl.d.exact="duplicateSelectedTask()"
+        @keydown.meta.d.exact="duplicateSelectedTask()"
         @keydown.ctrl.x.exact="refreshBackgroundImage()"
+        @keydown.meta.x.exact="refreshBackgroundImage()"
     >
       <template v-slot:title="{ title }">
         <div class="flex items-center space-x-4">
