@@ -27,6 +27,7 @@
         :editable-events="{ drag: true, resize: true, create: true }"
         :events="events"
         :hide-view-selector="true"
+        :selected-date="selectedDate"
         :hide-weekends="!store.get('settings.show_weekend')"
         :on-event-click="onTaskSingleClick"
         :on-event-create="onTaskCreate"
@@ -410,6 +411,7 @@ export default {
 
       start_date: ref(new Date()),
       end_date: ref(new Date()),
+      selectedDate: ref(new Date()),
 
       rules: ref({
         task: {
@@ -440,8 +442,15 @@ export default {
   },
 
   created() {
-    this.start_date = new Date(); // set your start date here
-    this.end_date = new Date(); // set your end date here
+    // Restore the last viewed date so a refresh (Cmd+R) keeps the current
+    // view instead of jumping back to today. The "today-button" is there for
+    // intentionally navigating back to today.
+    const persisted = store.get('ui.selected_date');
+    const initialDate = persisted ? new Date(persisted) : new Date();
+
+    this.start_date = initialDate;
+    this.end_date = initialDate;
+    this.selectedDate = initialDate;
   },
 
   async mounted() {
@@ -514,6 +523,9 @@ export default {
       console.log(startDate + " " + endDate)
       this.start_date = startDate
       this.end_date = endDate
+
+      // Persist the viewed date so a refresh restores this view instead of today
+      store.set('ui.selected_date', startDate.toISOString())
 
       // Add any functions here that should be called when the date range changes
       await this.fetchEvents({startDate, endDate})
