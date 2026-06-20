@@ -38,7 +38,6 @@
         :time-to="dayEnd"
         :watch-real-time="true"
         active-view="week"
-        today-button
         @ready="handleReady"
         @view-change="handleDateChange"
         @event-drop="updateTimeTrackingEntry"
@@ -60,16 +59,27 @@
             </template>
           </span>
 
-          <!-- START | Day navigation -->
+          <!-- START | Calendar navigation -->
           <!--
-            The built-in vue-cal arrows jump a whole week at a time. These two
-            buttons shift the visible window by a single day (e.g. Mon-Sun ->
-            Tue-Mon -> Wed-Tue ...), for finer-grained navigation.
+            A single navigation cluster: the inner chevrons shift the visible
+            window by a single day (e.g. Mon-Sun -> Tue-Mon -> Wed-Tue ...),
+            the outer double-chevrons jump a whole week, and "Today" snaps back
+            to the current week. The built-in vue-cal arrows / today button are
+            hidden via CSS so these can be laid out around "Today".
           -->
           <div
-              class="flex space-x-1 text-gray-600 dark:text-gray-400"
+              class="flex items-center space-x-1 text-gray-600 dark:text-gray-400"
               style="-webkit-app-region: no-drag"
           >
+            <button
+                class="hover:text-gray-800 dark:hover:text-gray-200"
+                title="Previous week"
+                aria-label="Previous week"
+                @click="goToPreviousWeek"
+            >
+              <chevron-double-left-icon class="w-5"/>
+            </button>
+
             <button
                 class="hover:text-gray-800 dark:hover:text-gray-200"
                 title="Back one day"
@@ -80,6 +90,15 @@
             </button>
 
             <button
+                class="px-1 text-xs font-medium uppercase hover:text-gray-800 dark:hover:text-gray-200"
+                title="Today"
+                aria-label="Today"
+                @click="goToToday"
+            >
+              Today
+            </button>
+
+            <button
                 class="hover:text-gray-800 dark:hover:text-gray-200"
                 title="Forward one day"
                 aria-label="Forward one day"
@@ -87,8 +106,17 @@
             >
               <chevron-right-icon class="w-5"/>
             </button>
+
+            <button
+                class="hover:text-gray-800 dark:hover:text-gray-200"
+                title="Next week"
+                aria-label="Next week"
+                @click="goToNextWeek"
+            >
+              <chevron-double-right-icon class="w-5"/>
+            </button>
           </div>
-          <!-- END | Day navigation -->
+          <!-- END | Calendar navigation -->
 
           <!-- START | Extra controls -->
           <div
@@ -370,7 +398,7 @@ import MemberSelector from '@/components/MemberSelector'
 import TimeTrackingStatistics from '@/components/TimeTrackingStatistics'
 import TimeEntryCreatorForm from '@/components/TimeEntryCreatorForm.vue'
 
-import {ChartPieIcon, ChevronLeftIcon, ChevronRightIcon, CogIcon, InformationCircleIcon, UsersIcon} from "@heroicons/vue/20/solid";
+import {ChartPieIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, CogIcon, InformationCircleIcon, UsersIcon} from "@heroicons/vue/20/solid";
 import {ClockIcon, PencilIcon, TrashIcon, StarIcon as StarIconOutline} from "@heroicons/vue/24/outline";
 import {StarIcon as StarIconSolid} from "@heroicons/vue/24/solid";
 import {
@@ -411,6 +439,8 @@ export default {
     CogIcon,
     UsersIcon,
     ChartPieIcon,
+    ChevronDoubleLeftIcon,
+    ChevronDoubleRightIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
     TrashIcon,
@@ -584,8 +614,28 @@ export default {
     },
 
     /*
-      Shift the visible 7-day window by the given number of days. The built-in
-      vue-cal arrows move a whole week at a time; this gives finer-grained,
+      Week / today navigation. vue-cal's own arrows and today button are hidden
+      via CSS so our navigation cluster can sit around "Today"; these delegate
+      to the same vue-cal methods, so the behaviour is identical.
+    */
+    goToPreviousWeek() {
+      this.$refs.calendar?.previous()
+    },
+
+    goToNextWeek() {
+      this.$refs.calendar?.next()
+    },
+
+    goToToday() {
+      const calendar = this.$refs.calendar
+      if (!calendar) return
+
+      calendar.updateSelectedDate(new Date(new Date().setHours(0, 0, 0, 0)))
+    },
+
+    /*
+      Shift the visible 7-day window by the given number of days. The week
+      buttons move a whole week at a time; this gives finer-grained,
       single-day navigation.
     */
     shiftViewByDays(days) {
